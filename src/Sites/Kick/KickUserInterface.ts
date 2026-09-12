@@ -98,7 +98,7 @@ export class KickUserInterface extends AbstractUserInterface {
 		this.loadCelebrationsBehaviour()
 		this.loadInputBehaviour()
 
-		const footerSelector = '#channel-chatroom > div > div > .z-common:not(.absolute)'
+		const footerSelector = '#chatroom-footer > .z-common'
 
 		// Wait for chat footer to load
 		waitForElements([`${footerSelector}`], 15_000, abortSignal)
@@ -323,7 +323,7 @@ export class KickUserInterface extends AbstractUserInterface {
 		const { abortController } = this
 		const abortSignal = abortController.signal
 
-		const footerSelector = '#channel-chatroom > div > div > .z-common:not(.absolute)'
+		const footerSelector = '#chatroom-footer > .z-common'
 		const footerBottomBarSelector = `${footerSelector} > div.flex > .flex.items-center > div.ml-auto`
 
 		// Wait for chat footer to load before we insert our component
@@ -391,7 +391,7 @@ export class KickUserInterface extends AbstractUserInterface {
 		const { abortController } = this
 		const abortSignal = abortController.signal
 
-		const footerSelector = '#channel-chatroom > div > div > .z-common:not(.absolute)'
+		const footerSelector = '#chatroom-footer > .z-common'
 		const quickEmotesHolderSelector = '#quick-emotes-holder'
 
 		const wrapperFunction = () => {
@@ -612,7 +612,7 @@ export class KickUserInterface extends AbstractUserInterface {
 		const abortSignal = abortController.signal
 
 		// Wait for text input & submit button to load
-		const footerSelector = '#channel-chatroom > div > div > .z-common:not(.absolute)'
+		const footerSelector = '#chatroom-footer > .z-common'
 		const submitButtonSelector = '#send-message-button'
 		const editorInputSelector = '#channel-chatroom .editor-input[contenteditable="true"]'
 
@@ -1527,11 +1527,11 @@ export class KickUserInterface extends AbstractUserInterface {
 			kickUserInfoModalContainerEl.style.display = 'none'
 			kickUserInfoModalContainerEl.style.opacity = '0'
 
-			const [giftSubButtonSvgPath] = await waitForTargetedElements(
+			const [giftSubButtonSvgPath] = (await waitForTargetedElements(
 				kickUserInfoModalContainerEl,
 				['#user-identity button path[d^="M28.75 7.5L33.75 0H23.75L20"]'],
 				20_000
-			)
+			).catch(() => [])) as Array<Element | undefined>
 
 			const giftSubButton = giftSubButtonSvgPath?.closest('button')
 			if (!giftSubButton) return
@@ -1578,8 +1578,12 @@ export class KickUserInterface extends AbstractUserInterface {
 				hideModalFaster.style.opacity = '0'
 			}
 
-			// Double check username to make sure its the right user profile modal
-			const [usernameEl] = await waitForElements(['#user-identity a[rel="noreferrer"][title]'], 20_000)
+			// Double check username to make sure its the right user profile modal.
+			// Kick's native card no longer opens on our username clicks, so this may never resolve.
+			const [usernameEl] = (await waitForElements(
+				['#user-identity a[rel="noreferrer"][title]'],
+				20_000
+			).catch(() => [])) as Array<Element | undefined>
 			const usernameElText = usernameEl?.textContent
 			if (!usernameElText || username !== usernameElText) return
 
@@ -1938,14 +1942,15 @@ export class KickUserInterface extends AbstractUserInterface {
 			return
 		}
 
-		const username = usernameEl.title
+		// Kick no longer sets a title attribute on the username button, so fall back to its text content
+		const username = usernameEl.title || usernameEl.textContent || ''
 		messageObject.username = username
 		messageObject.style.color = usernameEl.style.color
 
 		const ntvUsernameEl = document.createElement('span')
 		ntvUsernameEl.className = 'ntv__chat-message__username'
 		ntvUsernameEl.title = username
-		ntvUsernameEl.setAttribute('ntv-username', username);
+		ntvUsernameEl.setAttribute('ntv-username', username)
 		ntvUsernameEl.textContent = usernameEl.textContent || 'Unknown user'
 		ntvUsernameEl.style.color = usernameEl.style.color
 
@@ -2136,11 +2141,13 @@ export class KickUserInterface extends AbstractUserInterface {
 			messageNode.append(ntvChatMessageActionsEl)
 		}
 
-		// Forward event to Kick's original username element
+		// Open the NTV user card instead of forwarding the click to Kick's native card.
 		ntvUsernameEl.addEventListener('click', evt => {
-			const event = new MouseEvent('click', { bubbles: true, cancelable: false })
-			Object.defineProperty(event, 'target', { value: usernameEl, enumerable: true })
-			usernameEl.dispatchEvent(event)
+			evt.preventDefault()
+			evt.stopPropagation()
+
+			const rect = ntvUsernameEl.getBoundingClientRect()
+			this.handleUserInfoModalClick(username, { x: rect.x, y: rect.y - 100 })
 		})
 
 		// Observe class changes to detect when message is deleted
