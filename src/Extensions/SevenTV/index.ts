@@ -394,7 +394,7 @@ export default class SevenTVExtension extends Extension {
 			return error('EXT:STV', 'MAIN', `Skipping session without channel data, you're probably not in a channel..`)
 
 		const { channelId, userId: channelUserId } = session.channelData
-		const platformMeUserId = session.meData.userId
+		const platformMeUserId = session.meData?.userId
 
 		this.registerEmoteProvider(session)
 
@@ -408,7 +408,7 @@ export default class SevenTVExtension extends Extension {
 
 		// Fetch both our own 7TV user and the platform channel user
 		let promises = []
-		if (!this.cachedStvMeUser) {
+		if (!this.cachedStvMeUser && platformMeUserId) {
 			promises.push(
 				getUserCosmeticDataByConnection(platformId, platformMeUserId)
 					.then(res => res?.userByConnection ?? { id: STV_ID_NULL })

@@ -174,9 +174,10 @@ export default class KickNetworkInterface implements NetworkInterface {
 		// this.session.meData.channelId = '' + responseChannelData.id
 
 		const userData = await RESTFromMainService.get('https://kick.com/api/v1/user').catch(() => {})
-		if (!userData) throw new Error('Failed to fetch user data')
-
-		if (!userData.streamer_channel) throw new Error('Invalid user data, missing property "streamer_channel"')
+		if (!userData?.streamer_channel) {
+			info('KICK', 'NET', 'User is not logged in, skipping personal user data.')
+			return
+		}
 
 		const { id, user_id, slug } = userData.streamer_channel
 		if (!id) throw new Error('Invalid user data, missing property "id"')
@@ -315,7 +316,7 @@ export default class KickNetworkInterface implements NetworkInterface {
 		const channelName = (channelData as any).channelName as string
 		const responseChannelMeData = await RESTFromMainService.get(
 			`https://kick.com/api/v2/channels/${channelName}/me`
-		).catch(err => error('KICK', 'NET', err.message))
+		).catch(() => undefined)
 
 		if (responseChannelMeData) {
 			Object.assign(channelData, {
@@ -522,11 +523,11 @@ export default class KickNetworkInterface implements NetworkInterface {
 			RESTFromMainService.get(`https://kick.com/api/v2/channels/${slug}/me`),
 			RESTFromMainService.get(`https://kick.com/api/v2/channels/${slug}`)
 		])
-		if (res1.status === 'rejected' || res2.status === 'rejected') {
+		if (res2.status === 'rejected') {
 			throw new Error('Failed to fetch user data')
 		}
 
-		const userMeInfo = res1.value
+		const userMeInfo = res1.status === 'fulfilled' ? res1.value : undefined
 		const userOwnChannelInfo = res2.value
 
 		// log('KICK', 'NET', 'User me info:', userMeInfo)
@@ -542,7 +543,7 @@ export default class KickNetworkInterface implements NetworkInterface {
 			createdAt: userOwnChannelInfo?.chatroom?.created_at
 				? new Date(userOwnChannelInfo?.chatroom?.created_at)
 				: null,
-			isFollowing: userMeInfo.is_following
+			isFollowing: !!userMeInfo?.is_following
 		}
 	}
 
